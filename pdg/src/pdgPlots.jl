@@ -223,4 +223,147 @@ function plotWavelengthSpectrogram(f, delayVec, lVec, intensityMat;
 end
 
 
-export plotFreqDomain, plotWavelengthDomain, plotTimeDomain, plotFreqSpectrogram, plotWavelengthSpectrogram
+
+
+"""
+    Plot pulse data and spectrogram to pdf file
+"""
+function plotPulseData(dirPath::String,
+                       EsData::ComplexSignal{T},
+                       SpecsData::ComplexSignal{T},
+                       asData::Tuple{AbstractVector{T},AbstractVector{T},NamedTuple},
+                       pulseData=Tuple) where {T<:Real}
+    colors = Makie.wong_colors()
+    commonAxAttr = (titlesize=10, xlabelsize=10, ylabelsize=10,
+                    xticklabelsize=8, yticklabelsize=8, ylabelvisible=false, xlabelvisible=true,
+                    xminorgridvisible=true, yminorgridvisible=true,
+                    topspinevisible=false, leftspinecolor = colors[1], rightspinecolor = colors[2])
+    commonLeftAttr = (ylabelcolor = colors[1], yticklabelcolor = colors[1], ytickcolor = colors[1])
+    commonRightAttr = (ylabelcolor = colors[2], yticklabelcolor = colors[2], ytickcolor = colors[2],
+                       yaxisposition = :right)
+    legendAttr = (framevisible = false, labelsize=8)
+
+    wLaser = pulseData.wCenter / 2
+    delayAxis = EsData.xVals * femto
+    Es = getSignal(EsData)
+    ll = SpecsData.xVals * nano
+    Ywl = getSignal(SpecsData)
+
+    newWvAxis = asData[2]
+    shgIntMatWv = asData[3][1]
+
+    # Plotten
+    f1= Figure()
+    # tPlotLims = (-3, 3) .* pulseData.fwhmT
+    tPlotLims = extrema(delayAxis)
+
+    # Time Domain
+    tempIntensity = abs.(Es).^2
+    idxPhase = idxRangeAboveThres(tempIntensity, 1/100)
+    omt = mydiff5(EsData.phase[idxPhase], delayAxis[2] - delayAxis[1])# .+ pulseData.wp
+    instFreqLims =  (0.90, 1.1) .* wLaser
+
+    axl = Axis(f1[1,1]; commonAxAttr..., commonLeftAttr...,
+               ylabel="Intensity (a.u.)",
+               xlabel="Time in fs",
+               title="Time axis: FWHM=$(round(pulseData.fwhmT/femto, digits=2))fs",
+               limits=(tPlotLims ./ femto, nothing))
+    lines!(axl, delayAxis/femto, tempIntensity, label="Intensity",
+           color = colors[1], linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
+    lines!(axl, delayAxis/femto, reverse(tempIntensity), label="Intensity-Rev", color = colors[4],
+           linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
+    axislegend(axl, position=:lt; legendAttr...)
+
+    axr = Axis(f1[1,1]; commonAxAttr..., commonRightAttr...,
+               ylabel="Inst. freq. in THz",
+               limits=(tPlotLims ./ femto,  instFreqLims ./ angFregTHz))
+               # limits=(tPlotLims ./ femto,  nothing))
+    lines!(axr, delayAxis[idxPhase[3:end-2]]/femto,
+           omt / angFregTHz, label="Inst. Freq (THz)",
+           color = colors[2], linestyle=:solid, linewidth=1)
+
+    # scatterlines!(axr, delayAxis[idxPhase]/femto,
+    #        EsData.phase[idxPhase], label="Phase",
+    #        color = colors[2], linestyle=:solid, linewidth=1)
+
+
+    axislegend(axr, position=:rt; legendAttr...)
+
+    hidespines!(axr)
+    hidexdecorations!(axr)
+    hideydecorations!(axr, ticks=false, ticklabels = false, label=false)
+
+    # Wavelength Domain
+    # llLims = (((-5, 5) .* pulseData.fwhmWv .+ 2*c2p /pulseData.wCenter)./nano, nothing)
+    llLims = (extrema(ll)./nano, nothing)
+    wvInt = abs.(Ywl).^2
+    wvInt ./= maximum(wvInt)
+    idxPhase = idxRangeAboveThres(wvInt, 1/100)
+    phl = unwrap(angle.(Ywl))
+    axl = Axis(f1[2,1]; commonAxAttr..., commonLeftAttr...,
+               title="Pulse on wavelength axis (in nm): FWHM=$(round(pulseData.fwhmWv/nano, digits=2))nm",
+               limits=llLims)
+    lines!(axl, ll/nano, wvInt , label="Spectral Intensity",
+           color = colors[1], linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
+    axislegend(axl, position=:lt; legendAttr...)
+
+    axr = Axis(f1[2,1]; commonAxAttr..., commonRightAttr...,
+               ylabel="Phase",
+               limits=llLims)
+    lines!(axr, ll[idxPhase]/nano, phl[idxPhase], label="Phase in rad",
+           color = colors[2], linestyle=:solid, linewidth=1)
+    axislegend(axr, position=:rt; legendAttr...)
+
+    hidespines!(axr)
+    hidexdecorations!(axr)
+    hideydecorations!(axr, ticks=false, ticklabels = false, label=false)
+
+    axSHG1 = plotWavelengthSpectrogram(f1[1,2], delayAxis, newWvAxis,
+                                       shgIntMatWv)
+    tbp = round(pulseData.rmsW * pulseData.rmsT, digits=2)
+    axSHG1.title="Wavelength-SHG: TBP=$(tbp)"
+
+
+    # MAN BEACHTE: durch das Interpolieren kann die Matrix shgIntMatWv vom Betrag
+    # her sehr kleine, aber negative Werte haben. Dann erzeugt die log-Skala einen Fehler.
+    # Daher wird hier noch mal der Betrag der Matrix genommen.
+    axSHG2 = plotWavelengthSpectrogram(f1[2,2], delayAxis, newWvAxis,
+                                       abs.(shgIntMatWv);
+                                       logScale=true);
+    axSHG2.title="Wavelength-SHG: Log Scale"
+
+
+    if length(dirPath) > 0
+        @assert isdir(dirPath)
+        save(joinpath(dirPath, "SimulatedData.pdf"), f1)
+    # else
+    #     display(f1)
+    end
+
+    # Plot der 4 Noise-Levels
+    # f2= Figure()
+    # matNames = keys(asData[3])
+    # axSHG11 = plotWavelengthSpectrogram(f2[1,1], delayAxis, newWvAxis,
+    #                                     asData[3][matNames[1]])
+    # axSHG11.title=string(matNames[1])
+    # axSHG12 = plotWavelengthSpectrogram(f2[1,2], delayAxis, newWvAxis,
+    #                                     asData[3][matNames[2]])
+    # axSHG12.title=string(matNames[2])
+    # axSHG21 = plotWavelengthSpectrogram(f2[2,1], delayAxis, newWvAxis,
+    #                                     asData[3][matNames[3]])
+    # axSHG21.title=string(matNames[3])
+    # axSHG22 = plotWavelengthSpectrogram(f2[2,2], delayAxis, newWvAxis,
+    #                                    asData[3][matNames[4]])
+    # axSHG22.title=string(matNames[4])
+
+
+    # if length(dirPath) > 0
+    #     @assert isdir(dirPath)
+    #     save(joinpath(dirPath, "SimulatedData_noisyTraces.pdf"), f2)
+    # end
+
+end
+
+
+
+export plotFreqDomain, plotWavelengthDomain, plotTimeDomain, plotFreqSpectrogram, plotWavelengthSpectrogram, plotPulseData

@@ -32,6 +32,9 @@ struct SpectrogramInfo
             parse(Float64, items[5])*nano)   # given in nm
     end
 
+    function SpectrogramInfo(NumDelays, NumSpecPoints, DelayDist, ResSpec, CenterWavelen)
+        new(NumDelays, NumSpecPoints, DelayDist, ResSpec, CenterWavelen)
+    end
 
 
     function SpectrogramInfo(delayAxis::AbstractVector,
@@ -284,5 +287,69 @@ function readFrogDat(frogFileName)
 
 end
 
+"""
+ write all available data to a directory. This consists of
+ Es.dat: signal in time domain (five column format)
+ Specs.dat: signal in wavelength domain (five column format)
+ as.dat: shg matrix
+ # Arguments:
+ - `fullPath`: full path of directory to write to
+ - `EsData`: ComplexSignal object (see pdgFileIO.jl) for file Es.dat.
+ - `SpecsData`: ComplexSignal object (see pdgFileIO.jl) for file Specs.dat.
+ - `asData`: tuple of (time vector, wavelength vector, shg-Mat) of consistent size
+ - `delim="  "`: delimiter
 
-export SpectrogramInfo, readSpectrogramInfoFromFile, showFieldFreqs, generateAxes, print, loadSpecMat, writeFrogTraceToFile, ComplexSignal, writeFiveColumns, readFrogDat
+"""
+function writePulseDataToDir(fullPath::String,
+                             EsData::ComplexSignal{T},
+                             SpecsData::ComplexSignal{T},
+                             asData::Tuple{AbstractVector{T},AbstractVector{T}, NamedTuple},
+                             delim="  ") where{T<:Real}
+    if isfile(fullPath)
+        error("$(fullPath) is an existing file")
+    end
+    if !isdir(fullPath)
+        mkpath(fullPath)
+    end
+    @assert length(asData[1]) == size(asData[3][1], 1)
+    @assert length(asData[2]) == size(asData[3][1], 2)
+
+
+    writeFiveColumns(joinpath(fullPath, "Es.dat"),
+                     EsData;
+                     delim=delim)
+
+    writeFiveColumns(joinpath(fullPath, "Specs.dat"),
+                     SpecsData;
+                     delim=delim)
+
+
+    for matName in keys(asData[3])
+        fn = "as_" * string(matName) * ".dat"
+        # Skaliert auf max=2^16
+        writeFrogTraceToFile(joinpath(fullPath, fn),
+                             asData[1], asData[2], asData[3][matName])
+    end
+
+end
+
+
+"""
+write some pulse features (width and peak frequency) to a text file
+"""
+function writePulseFeatures(fullPath::String, pulseData=Tuple)
+    if length(fullPath) != 0
+        @assert isdir(fullPath)
+
+        open(joinpath(fullPath, "SimulatedPulseData.txt"), "w") do io
+            for p in pairs(pulseData)
+                writedlm(io, [p.first p.second], ";")
+            end
+        end
+    end
+end
+
+
+
+
+export SpectrogramInfo, readSpectrogramInfoFromFile, showFieldFreqs, generateAxes, print, loadSpecMat, writeFrogTraceToFile, ComplexSignal, writeFiveColumns, readFrogDat, writePulseDataToDir, writePulseFeatures

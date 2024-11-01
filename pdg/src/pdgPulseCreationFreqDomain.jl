@@ -172,19 +172,19 @@ end
 """
   createSHGAmplitude: berechnet die SHG-Frog-Matrix aus dem analytischen Signal im Zeitbereich.
   Dabei wird angenommen, dass das Zeitsignal im Bereich [-T0/2, T0/2 - Ts] definiert ist.
-  Wegen der Frequenzverdopplung wird das Produktsignal um 2*wCenter im Frequenzbereich verschoben.
+  Wegen der Frequenzverdopplung wird das Produktsignal um 2*wLaser im Frequenzbereich verschoben.
   # Arguments
   `yta::Vector{Complex{T}}`: analytisches Signal im Zeitbereich
   `Ts::T`: Abtastzeit = Delay
-  `wCenter::T`: Center-Frequenz
+  `wLaser::T`: Laser-Frequenz, d.h. da sollte der Laser seinen Peak haben
   # Return value: Eine quadratische, komplexe NxN-Matrix, wobei N die Laenge des Zeitvektors yta ist.
 """
 function createSHGAmplitude(yta::Vector{Complex{T}}, Ts::T,
-                            wCenter::T)::Matrix{Complex{T}} where{T<:Real}
+                            wLaser::T)::Matrix{Complex{T}} where{T<:Real}
     N = length(yta)
     @assert iseven(N)
     delayIdxVec = (-N ÷ 2):(N ÷ 2 - 1)
-    shiftFactor = exp.(- 1im * 2*wCenter * Ts * delayIdxVec)
+    shiftFactor = exp.(- 1im * 2*wLaser * Ts * delayIdxVec)
 
     shgMat = zeros(Complex{T}, N, N)
     for (matIdx, delayIdx) in enumerate(delayIdxVec)
@@ -195,4 +195,4 @@ function createSHGAmplitude(yta::Vector{Complex{T}}, Ts::T,
 end
 
 
-export rdVal, rdSign, createRandomSignal, createSHGAmplitude
+export rdVal, rdSign, createRandomSignal, createSHGAmplitude, cubicPhaseFuncAngFreq, gaussShape

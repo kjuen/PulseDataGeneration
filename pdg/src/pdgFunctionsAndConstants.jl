@@ -154,7 +154,6 @@ function idxRangeAboveThres(sig, thres)
 end
 
 # bestimme den Index-Bereich, für den die Werte von sig innerhalb der limits liegen
-# die über thres*maximum(sig) liehen
 function idxRangeWithinLimits(sig, limits)
     @assert issorted(sig)
     @assert limits[2] > limits[1]
