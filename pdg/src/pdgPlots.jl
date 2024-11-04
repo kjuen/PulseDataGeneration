@@ -261,7 +261,7 @@ function plotPulseData(dirPath::String,
     tempIntensity = abs.(Es).^2
     idxPhase = idxRangeAboveThres(tempIntensity, 1/100)
     omt = mydiff5(EsData.phase[idxPhase], delayAxis[2] - delayAxis[1])# .+ pulseData.wp
-    instFreqLims =  (0.90, 1.1) .* wLaser
+    instFreqLims =  (0.975, 1.025) .* wLaser
 
     axl = Axis(f1[1,1]; commonAxAttr..., commonLeftAttr...,
                ylabel="Intensity (a.u.)",
@@ -270,8 +270,8 @@ function plotPulseData(dirPath::String,
                limits=(tPlotLims ./ femto, nothing))
     lines!(axl, delayAxis/femto, tempIntensity, label="Intensity",
            color = colors[1], linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
-    lines!(axl, delayAxis/femto, reverse(tempIntensity), label="Intensity-Rev", color = colors[4],
-           linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
+    #lines!(axl, delayAxis/femto, reverse(tempIntensity), label="Intensity-Rev", color = colors[4],
+    #       linestyle=:solid, linewidth=2) # , marker=:x, markersize=4)
     axislegend(axl, position=:lt; legendAttr...)
 
     axr = Axis(f1[1,1]; commonAxAttr..., commonRightAttr...,

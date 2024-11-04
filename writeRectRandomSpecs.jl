@@ -81,14 +81,14 @@ function generatePulseRectSpec(dirPath::AbstractString,
 
 
     # Erzeugung eines Pulses auf der dichten Achse
-    gdd = 100000  / wLaser^2
-    tod = 150 * gdd/wLaser
+    gdd = 200000  / wLaser^2
+    tod = 300 * gdd/wLaser
 
     if simple   # das hier macht keinen eigenen scope!
         # fixed parameters
         paramsPulse = (wPeak = wLaser*rdVal(0.999, 1.001),
                        A = 1e14,
-                       rmsw = 0.5*angFregTHz* rdVal(0.8, 1.2),
+                       rmsw = 0.6*angFregTHz* rdVal(0.8, 1.2),
                        timeShift = 0,
                        gdd = gdd/50* rdVal(0.0, 1.0),   # gdd >= 0.0 wegen Eindeutigkeit
                        tod = 0)
@@ -134,13 +134,10 @@ function generatePulseRectSpec(dirPath::AbstractString,
     end
     @info "Laserpuls-Freqbereich" fwhmW/angFregTHz rmsW/angFregTHz
 
-    # FIXME: Warum ist yta immer symmetrisch um 0??
-    # (sowohl die Phase als auch der Betrag!)
-
     # Da die Signale auf max=1 normiert werden, braucht man kein 1/delay
     ytaBaseBand = fftshift(ifft(fftshift(Ywp))) # .* exp.(1im * wCenter * delayAxis)
     ytaBaseBand ./= maximum(abs.(ytaBaseBand))
-    # ytaBaseBand .+= 1/100 *maximum(abs.(ytaBaseBand))
+    ytaBaseBand .+= rdVal(0, 1/50) *maximum(abs.(ytaBaseBand))
 
     # Das hier ist tricky: unwrap(angle.(yta)) liefert ein falsches Ergebnis, denn im Band um
     # wCenter ist ja das Abtasttheorem nicht erfuellt. Daher wird die Phase im Basisband berechnet
@@ -181,11 +178,11 @@ function generatePulseRectSpec(dirPath::AbstractString,
         @warn "Signal fällt nicht auf 0 im Frequenzbereich ab"
         return (5, nothing)
     end
-    idxT = idxRangeAboveThres(abs.(yta), 2/10)
-    if (idxT[1] == 1) || (idxT[end] == N)
-        @warn "Signal fällt nicht auf 0 im Zeitbereich ab"
-        return (1, nothing)
-    end
+    idxT = idxRangeAboveThres(abs.(yta), 1/1000)
+    # if (idxT[1] == 1) || (idxT[end] == N)
+    #     @warn "Signal fällt nicht auf 0 im Zeitbereich ab"
+    #     return (1, nothing)
+    # end
     # @show rmsW / angFregTHz
 
     # Zeitbereichsdaten für die Datei: Da muss die Zeitachse wird auf ttTarget runtergesampled
@@ -218,7 +215,7 @@ function generatePulseRectSpec(dirPath::AbstractString,
     # Spec Mat: lebt in delayAxis x wAxisShifted2
     # wAxisShifted2 = wAxisBaseBand .+ 2*wCenter   # hier lebt das Produkt-Signal
     # wAxisShifted2 = ww .+ wCenter   # hier lebt das Produkt-Signal
-    shgAmplMat = createSHGAmplitude(yta, Ts, wLaser)
+    @time shgAmplMat = createSHGAmplitude(yta, Ts, wLaser)
 
     # Zu der Groesse reduzieren, die fuer das Target-Spektrogramm ausreicht
     (tidx1, tidx2) = idxRangeWithinLimits(tt, extrema(ttTarget))
@@ -251,23 +248,18 @@ function generatePulseRectSpec(dirPath::AbstractString,
     # end
 
     # Gauss-Noise zufügen
-    # shgIntMatWvMax = maximum(shgIntMatWv)
+    shgIntMatWvMax = maximum(shgIntMatWvOut)
     # shgIntMatWv_gn01 = copy(shgIntMatWv) + 0.001 * shgIntMatWvMax * randn(size(shgIntMatWv))
-    # shgIntMatWv_gn10 = copy(shgIntMatWv) + 0.01 * shgIntMatWvMax * randn(size(shgIntMatWv))
+    shgIntMatWv_gn10 = copy(shgIntMatWvOut) + 0.01 * shgIntMatWvMax * randn(size(shgIntMatWvOut))
     # shgIntMatWv_gn30 = copy(shgIntMatWv) + 0.03 * shgIntMatWvMax * randn(size(shgIntMatWv))
     # @show traceError(shgIntMatWv, shgIntMatWv_gn01)
     # @show traceError(shgIntMatWv, shgIntMatWv_gn10)
     # @show traceError(shgIntMatWv, shgIntMatWv_gn30)  Komisch: der Wert hier passt nicht
 
 
-    # asData = (delayAxis, lAxisShifted2,
-    #           (gn00 = shgIntMatWv,
-    #            gn01 = shgIntMatWv_gn01,
-    #            gn10 = shgIntMatWv_gn10,
-    #            gn30 = shgIntMatWv_gn30))
-
     asData = (ttOut, llOut,
-              (;gn00 = shgIntMatWvOut))
+              (;gn00 = shgIntMatWvOut,
+               gn10 = shgIntMatWv_gn10))
     # In Verzeichnis schreiben
     if !skipWrite
         pd = (fwhmT=fwhmT, rmsT=rmsT,
@@ -300,11 +292,7 @@ si = SpectrogramInfo(613, 1064, 3.2678*femto, 0.0207*nano, 516.005*nano)
 count = 0
 success = 0
 simpleCount = 0
-keinAbfallZeitbereich = 0
-keinAbfallFreqbereich = 0
-noIsland = 0
-noFWHM = 0
-rmstTooSmall = 0
+errCodeCounter = zeros(Int, 5)
 tbpVec = []
 nFiles = 10
 @time begin
@@ -315,7 +303,7 @@ nFiles = 10
         end
         local p = joinpath(targetDir, "s"*string(success+1))
         simple= rand() < 1/300
-        local (retCode, tbp) = generatePulseRectSpec(p, si; simple=false,
+        local (retCode, tbp) = generatePulseRectSpec(p, si; simple=simple,
                                                      skipWrite=false)
         if retCode == 0
             global success += 1
@@ -323,20 +311,9 @@ nFiles = 10
                 global simpleCount += 1
             end
             println(success)
-
             push!(tbpVec, tbp)
-        elseif retCode == 1
-            global keinAbfallZeitbereich += 1
-        elseif retCode == 2
-            global noIsland +=1
-        elseif retCode == 3
-            global noFWHM += 1
-        elseif retCode == 4
-            global rmstTooSmall += 1
-        elseif retCode == 5
-            global keinAbfallFreqbereich += 1
         else
-            error("Unknown ret-code")
+            global errCodeCounter[retCode] += 1
         end
 
     end
