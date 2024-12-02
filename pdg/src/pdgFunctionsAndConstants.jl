@@ -309,7 +309,12 @@ function autocorr(x::AbstractVector; Ts =1)
     end
     return (ret, ((-N+1):(N))*Ts)
 end
+
+
 # kleiner Test
+
+
+
 
 
 # tt = range(-5, 5, 100)
@@ -364,6 +369,65 @@ function mseUpToSignAndLin(v1, v2)
         return (mse2, D*beta2 .- y2)
     end
 end
+
+#* Rana
+
+"""
+ Rana-Algorithm from https://arxiv.org/abs/1811.01470
+ # Arguments:
+ - `ScSw`: Auto convolution of the spectrum S(w)
+ - `w0`: frequency resolution
+ - `alpha`: parameter controlling continuity
+ - `beta`: parameter controlling first derivative
+ - `gamma`: parameter controlling second derivative
+"""
+function rana(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
+    N = length(ScSw)
+    # We assume that ScSw lives in the centered baseband.
+    # st2c is centered around t=0
+    st2c = fftshift(ifft(fftshift(ScSw)))  # Equation (4) in Rana-Paper
+    st2c ./= maximum(abs.(st2c))
+
+    # Take square root of st2 accordung to RANA paper
+    st = similar(st2c)
+    st[1] = sqrt(st2c[1])
+    for i = 2:N
+        sp = sqrt(st2c[i])
+        sm = - sp
+        # Equation (6) in Rana-Paper:
+        Deltap = alpha * abs(sp - st[i-1])
+        Deltam = alpha * abs(sm - st[i-1])
+
+        # Equation (7) in Rana-Paper:
+        if i > 2
+            Deltap += beta * abs(sp - 2*st[i-1] + st[i-2])
+            Deltam += beta * abs(sm - 2*st[i-1] + st[i-2])
+        end
+
+        # Equation (8) in Rana-Paper:
+        if i > 3
+            Deltap += gamma * abs(sp - 3*st[i-1] + 3 * st[i-2] - st[i-3])
+            Deltam += gamma * abs(sm - 3*st[i-1] + 3 * st[i-2] - st[i-3])
+        end
+
+        # Take closer root, see bottom of page 4 in Rana-Paper
+        if Deltap < Deltam
+            st[i] = sp
+        else
+            st[i] = sm
+        end
+    end
+
+    # Go back to frequency domain
+    Sw = fftshift(fft(fftshift(st)))   # this shoud be real !!
+    Sw ./= maximum(abs.(Sw))
+
+    @show maximum(imag.(Sw)) / maximum(real.(Sw))
+    ws = N*w0
+    wAxis = (0:(N-1))*w0 .- ws/2
+    return (Sw, wAxis)
+end
+
 
 
 export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits
