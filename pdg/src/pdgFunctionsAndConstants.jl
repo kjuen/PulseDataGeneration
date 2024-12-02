@@ -228,9 +228,9 @@ function intensityMatFreq2Wavelength(ww, freqIntMat)
     wvIntMat = zeros(eltype(freqIntMat), size(freqIntMat))
 
 
-    ll =  c2p ./ reverse(ww)
-    llGrid = range(ll[1], ll[end], length(ll))
-    @assert issorted(ll)
+    ll =  c2p ./ reverse(ww)   # nicht äquidistant!
+    # @assert issorted(ll)
+    llGrid = range(ll[1], ll[end], length(ll))   # äquidistant
 
     for (i, Sw) in enumerate(eachrow(freqIntMat))
         Sl = reverse(Sw .* ww.^2 / c2p)
@@ -240,6 +240,26 @@ function intensityMatFreq2Wavelength(ww, freqIntMat)
 
     return (llGrid, wvIntMat)
 end
+
+function intensityMatWavelength2Freq(ll, wvIntMat)
+    @assert length(ll) == size(wvIntMat, 2)
+    @assert issorted(ll)
+    freqIntMat = zeros(eltype(wvIntMat), size(wvIntMat))
+
+    ww =  c2p ./ reverse(ll)
+    @assert issorted(ww)
+    wwGrid = range(ww[1], ww[end], length(ww))
+
+    for (i, Sl) in enumerate(eachrow(wvIntMat))
+        Sw = reverse(Sl .* ll.^2 / c2p)
+        itp = linear_interpolation(ww, Sw)
+        freqIntMat[i,:] = itp.(wwGrid)
+    end
+
+    return (wwGrid, freqIntMat)
+end
+
+
 
 
 function specMatCorrectlySampled(mat::Matrix{T}; nPix=3, thres=1e-4) where {T <: Real}
@@ -287,7 +307,7 @@ function autocorr(x::AbstractVector; Ts =1)
         xs = circshift(x2, i)
         ret[i] = trapz(t, x1.*xs) * Ts
     end
-    return (ret, (-N:(N-1))*Ts)
+    return (ret, ((-N+1):(N))*Ts)
 end
 # kleiner Test
 
@@ -346,4 +366,4 @@ function mseUpToSignAndLin(v1, v2)
 end
 
 
-export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits
+export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits

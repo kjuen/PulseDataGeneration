@@ -4,13 +4,16 @@ using FFTW
 using DSP: unwrap
 using GLMakie
 
+using Pkg
+Pkg.activate("..")
+#Pkg.develop(path="../../pdg")
 using pdg
 
-
+const TolSmall = 1e-14
+const TOL = 1e-10
 
 function runVariousTests()
-    tolSmall = 1e-14
-    TOL = 1e-10
+
 
     N = 4*128
     Ts = 0.1 / 2
@@ -41,6 +44,7 @@ function runVariousTests()
     @testset "Breiten-Berechnungen" begin
 
         fwhmt = berechneFWHM(yt, tt)
+        @show fwhmt
         fwhmt2 = berechneFWHM(yt.^2, tt)
         fwhmw = berechneFWHM(abs.(Ywc), wwc)
         fwhmw2 = berechneFWHM(abs.(Ywc).^2, wwc)
@@ -52,11 +56,13 @@ function runVariousTests()
 
 
         # fwhm ist sehr sensitiv bzgl. Diskretisierung!
+        @test isapprox(fwhmt, sqrt(log(2)); atol=2/100)
         @test isapprox(fwhmw * fwhmt, 8*log(2); atol=2/100)
         @test isapprox(fwhmw2 * fwhmt2, 4*log(2); atol= 2/100)
+        @test isapprox(rmst, 1/4; atol= TOL)
+        @test isapprox(rmsw, 2; atol= TOL)
         @test isapprox(rmsw * rmst, 1/2; atol= TOL)
         @test isapprox(rmsw2 * rmst2, 1/4; atol = TOL)
-
     end
 
     @testset "mseUpTo" begin
@@ -96,7 +102,50 @@ function runVariousTests()
         # Durch die Skalierung 2.34 sollte der traceError hier aber sicher < s sein.
         @test traceError(A, B) < s
     end
+
+
+    @testset "berechneBreite2" begin
+        # Das hier basiert auf dem Buch von Cohen, Example 1.6, Seite 16
+        alpha = 13.58
+        beta = 122.23
+        gamma = -212.23
+        w0 = 134.7
+        phi(t) = gamma/3*t^3 + beta/2*t^2 + w0*t
+        s(t) = (alpha/pi)^(1/4) * exp(-alpha/2*t^2 + 1im*phi(t))  # Gl 1.99
+
+        N = 1024
+        Ts = 1/100
+        T0 = N*Ts
+        tt = (0:(N-1))*Ts
+        tShift = T0/3
+        yt = s.(tt .- tShift)
+
+        # f = lines(tt, abs.(yt) , label="", linewidth=2, linestyle=:solid, # color=:blue;
+        #           axis = (; title = "Ein Plot", xlabel = "x", ylabel="y"))
+        # display(f)
+
+
+        w0 = 2*pi/T0
+        ws = N * w0
+        wwc = (0:(N-1))*w0 .- ws/2
+        Ywc = Ts * fftshift(fft(yt))
+
+        rmsw = berechneRMSBreite(abs.(Ywc), wwc)
+        rmswTheo = sqrt((alpha^2 + beta^2)/(2*alpha) + gamma^2 / (2*alpha^2))  # Gl (1.103)
+        @test abs(rmsw - rmswTheo)/rmswTheo < 1e-7
+
+        # f = lines(wwc, abs.(Ywc) , label="", linewidth=2, linestyle=:solid, # color=:blue;
+        #            axis = (; title = "Ein Plot", xlabel = "x", ylabel="y"))
+        # display(f)
+
+
+
+    end
+
+
 end
+
+
 
 
 function runSHGTests()
@@ -197,6 +246,23 @@ function runSHGTests()
         AdiffAbs = abs.(Afft) .- abs.(AfrogMat)
         Adiff = Afft .- AfrogMat
         @test maximum(abs.(Adiff)) < 1e-10
+
+    end
+
+
+    @testset "Intensity Matrix conversion" begin
+
+        N = 100
+        w = range(445, 455, N) * angFregTHz
+        wc = sum(w)/N
+        wr = w'
+        y = range(64, 74, N)
+        Mw = @. exp(-1/8*((wr-wc)^2+(y-70)^2))
+        (l, Ml) = intensityMatFreq2Wavelength(w, Mw)
+        (w2, Mw2) = intensityMatFreq2Wavelength(l, Ml)
+        @test maximum(abs.(w2 .- w)) ./ maximum(w) < TolSmall
+        @show maximum(abs.(Mw2 .- Mw)) < TolSmall
+
 
     end
 

@@ -56,7 +56,6 @@ function plotFreqDomain(f, ww, Ywp, specFreqRange; thres=0.01)
 
 
     hidespines!(axr)
-    hidexdecorations!(axr)
     hideydecorations!(axr, ticks=false, ticklabels = false, label=false)
     return (axl, axr)
 end
@@ -98,7 +97,6 @@ function plotWavelengthDomain(f, ww, Ywp, specFreqRange; thres=0.01)
 
 
     hidespines!(axr)
-    hidexdecorations!(axr)
     hideydecorations!(axr, ticks=false, ticklabels = false, label=false)
 
     return (axl, axr)
@@ -141,8 +139,8 @@ function plotTimeDomain(f, tt, ytana, timeLims, freqLims; thres=0.01, showRealFi
 
     axr = Axis(f[1,1]; commonAxAttr..., commonRightAttr...,
                ylabel="Inst freq in THz",
-               xlabel="Time in fs",
-               limits=(timeLims./femto, freqLims./angFregTHz))
+               xlabel="Time in fs") #,
+               # limits=(timeLims./femto, freqLims./angFregTHz))
     lines!(axr, tt[3:end-2][idxPhase]/femto, omt[idxPhase] / angFregTHz, label="Inst. freq",
            color = colors[2], linestyle=:solid, linewidth=2)
     # axislegend(axr, position=:rt, framevisible = false)
@@ -333,12 +331,7 @@ function plotPulseData(dirPath::String,
     axSHG2.title="Wavelength-SHG: Log Scale"
 
 
-    if length(dirPath) > 0
-        @assert isdir(dirPath)
-        save(joinpath(dirPath, "SimulatedData.pdf"), f1)
-    # else
-    #     display(f1)
-    end
+
 
     # Plot der 4 Noise-Levels
     # f2= Figure()
@@ -361,6 +354,15 @@ function plotPulseData(dirPath::String,
     #     @assert isdir(dirPath)
     #     save(joinpath(dirPath, "SimulatedData_noisyTraces.pdf"), f2)
     # end
+
+
+
+    if length(dirPath) > 0
+        @assert isdir(dirPath)
+        save(joinpath(dirPath, "SimulatedData.pdf"), f1)
+        # else
+        #     display(f1)
+    end
 
 end
 

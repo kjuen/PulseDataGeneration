@@ -1,3 +1,4 @@
 [deps]
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+Interact = "c601a237-2ae4-5e1e-952c-7a85b0c7eef1"
 pdg = "3fdf1f0c-f1f2-489d-83cf-cf3525e6a1d4"

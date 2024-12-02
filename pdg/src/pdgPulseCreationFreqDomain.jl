@@ -117,35 +117,43 @@ function triplePeak(singlePeak, x, peak1, peak2, peak3, rmsw1, rmsw2, rmsw3, a1,
     y = y * A/Atmp
 end
 
-function createRandomSignal(params)
+function createRandomSignal(params; shapeNum::Int=0, peakNum::Int=0)
     #createRandomSignal: erzeuge Zufallssignal mit gleicher Laenge wie ff
     # mit den Parametern params
 
-    i = rand(1:3)
+    if shapeNum == 0
+        shapeNum = rand(1:3)
+    elseif shapeNum < 0 || shapeNum > 3
+        error("Unknown shapeNum")
+    end
     # i = 1
-    if i == 1
+    if shapeNum == 1
         shapeFunc = gaussShape
-    elseif i == 2
+    elseif shapeNum == 2
         shapeFunc = sech2Shape
-    elseif i == 3
+    elseif shapeNum == 3
         shapeFunc = symExpShape
     end
 
-    i = rand(1:4)
+    if peakNum == 0
+        peakNum = rand(1:4)
+    elseif peakNum < 0 || peakNum > 4
+        error("Unknown peakNum")
+    end
     # i = 4
     # peakDiff = rdVal(0.2, 0.3)
-    if i == 1    # absorption
+    if peakNum == 4    # absorption
         wAbs = params.wPeak + rdVal(-2, 2) * params.rmsw
         rmswAbs = params.rmsw / rdVal(10, 25)
         abssig = ww -> peakWithAbsorption(shapeFunc, ww, params.wPeak, wAbs, params.rmsw, rmswAbs, params.A)
-    elseif i == 2   # double peak
+    elseif peakNum == 2   # double peak
         peak1 = params.wPeak + rdVal(-1.0, -0.5) * params.rmsw
         peak2 = params.wPeak + rdVal(0.5, 1.0) * params.rmsw
         rmsw1 = rdVal(0.2, 0.6) * params.rmsw
         rmsw2 = rdVal(0.2, 0.6) * params.rmsw
         a = rdVal(0.4, 0.6)
         abssig = ww -> doublePeak(shapeFunc, ww, peak1, peak2, rmsw1, rmsw2, a, params.A)
-    elseif i == 3  # triple peak
+    elseif peakNum == 3  # triple peak
         peak2 = params.wPeak + rdVal(-2.0, -1.0) * params.rmsw
         peak3 = params.wPeak + rdVal(1.0, 2.0) * params.rmsw
         rmsw1 = rdVal(0.4, 0.6) * params.rmsw
@@ -155,7 +163,7 @@ function createRandomSignal(params)
         a2 = rdVal(0.2, 0.4)
         abssig = ww -> triplePeak(shapeFunc, ww, params.wPeak, peak2, peak3,
                                   rmsw1, rmsw2, rmsw3, a1, a2, params.A)
-    elseif i == 4   # single peak
+    elseif peakNum == 1   # single peak
         abssig = ww -> shapeFunc(ww, params.wPeak, params.rmsw, params.A)
     end
     # cubicPhaseFunc(ff, params.fPeak, params.timeShift, params.gdd, params.tod);
