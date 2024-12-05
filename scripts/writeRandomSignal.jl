@@ -62,7 +62,7 @@ function plotRana(It, delayAxis, Ew, wAxisShifted,
     iac ./= maximum(iac)
     lines!(ax, tiac/femto, iac, label="Intensity-AC", color = colors[2],
                   linestyle=:dash, linewidth=2)
-    axislegend(ax, position=:rt; framevisible = false, labelsize=8)
+    axislegend(ax, position=:lt; framevisible = false, labelsize=8, rowgap=-7)
 
     meanSpecProfile = map(mean, eachcol(shgIntMat))
     meanSpecProfile ./= maximum(meanSpecProfile)
@@ -90,30 +90,37 @@ function plotRana(It, delayAxis, Ew, wAxisShifted,
            color = colors[1], linestyle=:solid, linewidth=2)
     lines!(ax2, wwConv/angFregTHz, ScSw, label="S*S(w)",
            color = colors[2], linestyle=:dash, linewidth=2)
-    axislegend(ax2, position=:lt; framevisible = false, labelsize=8)
+    axislegend(ax2, position=:lt; framevisible = false, labelsize=8, rowgap=-7)
 
 
-    (SwRana, wAxisRana) = rana(ScSw, w0; alpha=1.0, beta=10.0, gamma = 10.0)
+    (SwRana, wAxisRana, st2c, stc, ttcRana) = ranaDetails(ScSw, w0; alpha=1.0, beta=10.0, gamma = 10.0)
     ax3 = Axis(f2[1,2];
                xlabel="Frequenz in THz",
                ylabel="S(w)",
                title="Frequenzbereich",
                limits=(extrema(wAxisShifted/angFregTHz), nothing))
-    lines!(ax3, wAxisShifted/angFregTHz, Sw, label="Sw",
+    lines!(ax3, wAxisShifted/angFregTHz, Sw, label="S(w)",
            color = colors[1], linestyle=:solid, linewidth=2)
-    lines!(ax3, (wAxisRana .+ pulseData.wCenter)/angFregTHz, abs.(SwRana), color = colors[2], linestyle=:dash, linewidth=2)
-    # lines!(ax3, (wAxisRana)/angFregTHz, abs.(fftshift(SwRana)), color = colors[4], linestyle=:dash, linewidth=2)
+    lines!(ax3, (wAxisRana .+ pulseData.wCenter)/angFregTHz, abs.(SwRana),
+           label="|S(w)| Rana", color = colors[2], linestyle=:dash, linewidth=2)
+    lines!(ax3, (wAxisRana .+ pulseData.wCenter)/angFregTHz, real.(SwRana),
+           label="Re(S(w)) Rana", color = colors[3], linestyle=:solid, linewidth=1)
+    lines!(ax3, (wAxisRana .+ pulseData.wCenter)/angFregTHz, imag.(SwRana),
+           label="Im(S(w)) Rana", color = colors[4], linestyle=:solid, linewidth=1)
+    axislegend(ax3, position=:lt; framevisible = false, labelsize=8, colgap=50, rowgap=-7,
+               nbanks=2, padding=(0.0f0, 0.0f0, 0.0f0, 0.0f0))
 
-
-    wAxisRana2 = (0:(Nc-1))*w0 #  .+ wAxisShifted[1]
     @assert length(SwRana) == Nc
     ax4 = Axis(f2[2,2];
-               xlabel="Frequency in THz",
-               ylabel="S*S",
-               title="Frequenzbereich",
-               limits=(extrema(wAxisRana) ./ angFregTHz, nothing))
-    lines!(ax4, (wAxisRana .+ wAxisShifted[1])/angFregTHz, abs.(SwRana), color = colors[1], linestyle=:solid, linewidth=2)
-    # lines!(ax4, wwConv/angFregTHz, ScSw, label="S*S(w)", color = colors[1], linestyle=:solid, linewidth=2)
+               xlabel="Zeit in fs",
+               ylabel="",
+               title="Zeitbereich",
+               limits=(1/3 .* extrema(ttcRana) ./ femto, nothing))
+    scatterlines!(ax4, ttcRana/femto, abs.(st2c), label="|st^2|",
+           color = colors[1], linestyle=:solid, linewidth=2, markersize=6, marker=:cross)
+    scatterlines!(ax4, ttcRana/femto, abs.(stc), label="|st|",
+           color = colors[2], linestyle=:solid, linewidth=2, markersize=6, marker=:cross)
+    axislegend(ax4, position=:lt; framevisible = false, labelsize=8, rowgap=-7)
 
 
     save(joinpath(dirPath, "SimulatedMarginals.pdf"), f2)

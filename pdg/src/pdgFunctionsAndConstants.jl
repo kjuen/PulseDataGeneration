@@ -429,5 +429,57 @@ function rana(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
 end
 
 
+function ranaDetails(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
+    N = length(ScSw)
+    # We assume that ScSw lives in the centered baseband.
+    # st2c is centered around t=0
+    st2c = fftshift(ifft(fftshift(ScSw)))  # Equation (4) in Rana-Paper
+    st2c ./= maximum(abs.(st2c))
 
-export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana
+    # Take square root of st2 accordung to RANA paper
+    stc = similar(st2c)
+    stc[1] = sqrt(st2c[1])
+    for i = 2:N
+        sp = sqrt(st2c[i])
+        sm = - sp
+        # Equation (6) in Rana-Paper:
+        Deltap = alpha * abs(sp - stc[i-1])
+        Deltam = alpha * abs(sm - stc[i-1])
+
+        # Equation (7) in Rana-Paper:
+        if i > 2
+            Deltap += beta * abs(sp - 2*stc[i-1] + stc[i-2])
+            Deltam += beta * abs(sm - 2*stc[i-1] + stc[i-2])
+        end
+
+        # Equation (8) in Rana-Paper:
+        if i > 3
+            Deltap += gamma * abs(sp - 3*stc[i-1] + 3 * stc[i-2] - stc[i-3])
+            Deltam += gamma * abs(sm - 3*stc[i-1] + 3 * stc[i-2] - stc[i-3])
+        end
+
+        # Take closer root, see bottom of page 4 in Rana-Paper
+        if Deltap < Deltam
+            stc[i] = sp
+        else
+            stc[i] = sm
+        end
+    end
+
+    # Go back to frequency domain
+    Sw = fftshift(fft(fftshift(stc)))   # this shoud be real !!
+    Sw ./= maximum(abs.(Sw))
+
+    @show maximum(imag.(Sw)) / maximum(real.(Sw))
+    ws = N*w0
+    Ts = 2*pi/ws
+    T0 = N*Ts
+    ttc = (0:(N-1))*Ts .- T0/2
+    wAxis = (0:(N-1))*w0 .- ws/2
+    return (Sw, wAxis, st2c, stc, ttc)
+end
+
+
+
+
+export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana, ranaDetails
