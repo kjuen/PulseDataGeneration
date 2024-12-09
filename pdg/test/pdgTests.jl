@@ -4,8 +4,8 @@ using FFTW
 using DSP: unwrap
 using GLMakie
 
-using Pkg
-Pkg.activate("..")
+#using Pkg
+#Pkg.activate("..")
 #Pkg.develop(path="../../pdg")
 using pdg
 
@@ -44,7 +44,7 @@ function runVariousTests()
     @testset "Breiten-Berechnungen" begin
 
         fwhmt = berechneFWHM(yt, tt)
-        @show fwhmt
+        #@show fwhmt
         fwhmt2 = berechneFWHM(yt.^2, tt)
         fwhmw = berechneFWHM(abs.(Ywc), wwc)
         fwhmw2 = berechneFWHM(abs.(Ywc).^2, wwc)
@@ -249,6 +249,29 @@ function runSHGTests()
 
     end
 
+    @testset "Sw-Sl conversion" begin
+
+        N = 100
+        a = 1/25
+        ww = range(50, 100, N)
+        wp = sum(ww)/N
+        Sw = exp.(-a*(ww .- wp).^2)
+        (ll, Sl) = Sw2Sl(ww, Sw)
+        (ww2, Sw2) = Sl2Sw(ll, Sl)
+        # f = lines(ww , Sw, label="", linewidth=2, linestyle=:solid, #color=:blue;
+        #            axis = (; title = "Ein Plot", xlabel = "x", ylabel="y"))
+        # lines!(ww2, Sw2, label="", linewidth=2, linestyle=:solid)
+        # axislegend(position=:lt)
+        # display(f)
+
+        mse = sqrt(1/N * sum((Sw .- Sw2).^2))
+        A = 1/N * sum(Sw)
+        @test mse / A < 0.01
+
+
+
+    end
+
 
     @testset "Intensity Matrix conversion" begin
 
@@ -261,7 +284,7 @@ function runSHGTests()
         (l, Ml) = intensityMatFreq2Wavelength(w, Mw)
         (w2, Mw2) = intensityMatFreq2Wavelength(l, Ml)
         @test maximum(abs.(w2 .- w)) ./ maximum(w) < TolSmall
-        @show maximum(abs.(Mw2 .- Mw)) < TolSmall
+        # @show maximum(abs.(Mw2 .- Mw)) < TolSmall
 
 
     end

@@ -220,7 +220,34 @@ function delayToSpecRes(delay, nSpec, wCenter)
 end
 
 
+# Trebino Gl. (2.17)
+function Sw2Sl(ww, Sw)
+    @assert length(ww) == length(Sw)
+    @assert issorted(ww)
+    ll =  c2p ./ reverse(ww)
+    llGrid = range(ll[1], ll[end], length(ll))   # äquidistant
+    Sl = reverse(Sw .* ww.^2 / c2p)
+    itp = linear_interpolation(ll, Sl)
+    SlGrid = itp.(llGrid)
 
+    return (llGrid, SlGrid)
+end
+
+# Trebino Gl. (2.17)
+function Sl2Sw(ll, Sl)
+    @assert length(ll) == length(Sl)
+    @assert issorted(ll)
+
+    ww =  c2p ./ reverse(ll)
+    @assert issorted(ww)
+    wwGrid = range(ww[1], ww[end], length(ww))
+
+    Sw = reverse(Sl .* ll.^2 / c2p)
+    itp = linear_interpolation(ww, Sw)
+    SwGrid = itp.(wwGrid)
+
+    return (wwGrid, SwGrid)
+end
 
 function intensityMatFreq2Wavelength(ww, freqIntMat)
     @assert length(ww) == size(freqIntMat, 2)
@@ -482,4 +509,4 @@ end
 
 
 
-export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana, ranaDetails
+export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, Sw2Sl, Sl2Sw, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana, ranaDetails
