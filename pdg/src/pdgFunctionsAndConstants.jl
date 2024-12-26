@@ -408,7 +408,7 @@ end
  - `beta`: parameter controlling first derivative
  - `gamma`: parameter controlling second derivative
 """
-function rana(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
+function rana(ScSw, w0; alpha=0.09, beta=0.425, gamma=1.0)
     N = length(ScSw)
     # We assume that ScSw lives in the centered baseband.
     # st2c is centered around t=0
@@ -456,7 +456,7 @@ function rana(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
 end
 
 
-function ranaDetails(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
+function ranaDetails(ScSw, w0; alpha=0.09, beta=0.425, gamma=1.0)
     N = length(ScSw)
     # We assume that ScSw lives in the centered baseband.
     # st2c is centered around t=0
@@ -506,7 +506,194 @@ function ranaDetails(ScSw, w0; alpha=1.0, beta=0.25, gamma=0.75)
     return (Sw, wAxis, st2c, stc, ttc)
 end
 
+"""
+   Faltung so dass das Ausgangssignal die gleiche Länge wie das Eingangssignal hat.
+   Außerdem Normierung auf Max = 1
+"""
+function myAutoConv(s)
+    sf = fft(s)
+    c =  abs.(fftshift(ifft(sf.^2)))
+    c ./= maximum(abs.(c))
+    return c
+end
+
+
+function subtractBackground(sig; thres=0.02)
+    absSig = abs.(sig)
+    thresVal = maximum(absSig)*thres
+    bgVals = filter(s -> s<thresVal, absSig)
+    bg = isempty(bgVals) ? 0.0 : sum(bgVals) / length(bgVals)
+    return absSig .- bg
+end
+
+function rmsDiff(s, sRef)
+    @assert length(s) == length(sRef)
+    Z = sqrt(sum(sRef.^2))
+    return 1/Z * sqrt(sum((s .- sRef).^2))
+end
+
+
+function ranaImproved(ScSw, w0; alpha=0.09, beta=0.425, gamma=1.0)
+    N = length(ScSw)
+    @assert iseven(N)
+    # We assume that ScSw lives in the centered baseband.
+    # st2c is centered around t=0
+    st2c = fftshift(ifft(fftshift(ScSw)))  # Equation (4) in Rana-Paper
+    st2c ./= maximum(abs.(st2c))
+
+    # Take square root of st2 accordung to RANA paper
+    stc = similar(st2c)
+    stc[1] = sqrt(st2c[1])
+    for i = 2:N
+        sp = sqrt(st2c[i])
+        sm = - sp
+        # Equation (6) in Rana-Paper:
+        Deltap = alpha * abs(sp - stc[i-1])
+        Deltam = alpha * abs(sm - stc[i-1])
+
+        # Equation (7) in Rana-Paper:
+        if i > 2
+            Deltap += beta * abs(sp - 2*stc[i-1] + stc[i-2])
+            Deltam += beta * abs(sm - 2*stc[i-1] + stc[i-2])
+        end
+
+        # Equation (8) in Rana-Paper:
+        if i > 3
+            Deltap += gamma * abs(sp - 3*stc[i-1] + 3 * stc[i-2] - stc[i-3])
+            Deltam += gamma * abs(sm - 3*stc[i-1] + 3 * stc[i-2] - stc[i-3])
+        end
+
+        # Take closer root, see bottom of page 4 in Rana-Paper
+        if Deltap < Deltam
+            stc[i] = sp
+        else
+            stc[i] = sm
+        end
+    end
+    # Go back to frequency domain
+    SwSimple = fftshift(fft(fftshift(stc)))
+    SwSimple ./= maximum(abs.(SwSimple))
+    # Take magnitude und subtract backgound
+    SwSimple = subtractBackground(SwSimple)
+    ScSwSimple = myAutoConv(SwSimple)
+    rmsDiffSimple = rmsDiff(ScSwSimple, ScSw)
+
+    # Symmetrisiing of stc:
+    middleIndex = N÷2 + 1
+    stcSym = copy(stc)
+    stcSym[(middleIndex+1):end] = conj.(reverse(stcSym[2:(middleIndex-1)]))
+    SwSym = fftshift(fft(fftshift(stcSym)))
+    SwSym ./= maximum(abs.(SwSym))
+    # Take magnitude und subtract backgound
+    SwSym = subtractBackground(SwSym)
+    ScSwSym = myAutoConv(SwSym)
+    rmsDiffSym = rmsDiff(ScSwSym, ScSw)
+
+    # Loop just over the right hand side,  starting in the middle
+    stcRight = similar(st2c)
+    stcRight[1] = sqrt(st2c[1])  # this one remains undetermined
+    stcRight[middleIndex] = sqrt(st2c[middleIndex])
+    for ii = 1:(N÷2 - 1)
+        i = ii + middleIndex
+        sp = sqrt(st2c[i])
+        sm = - sp
+        # Equation (6) in Rana-Paper:
+        Deltap = alpha * abs(sp - stcRight[i-1])
+        Deltam = alpha * abs(sm - stcRight[i-1])
+
+        # Equation (7) in Rana-Paper:
+        if ii > 1
+            Deltap += beta * abs(sp - 2*stcRight[i-1] + stcRight[i-2])
+            Deltam += beta * abs(sm - 2*stcRight[i-1] + stcRight[i-2])
+        end
+
+        # Equation (8) in Rana-Paper:
+        if ii > 2
+            Deltap += gamma * abs(sp - 3*stcRight[i-1] + 3 * stcRight[i-2] - stcRight[i-3])
+            Deltam += gamma * abs(sm - 3*stcRight[i-1] + 3 * stcRight[i-2] - stcRight[i-3])
+        end
+
+        # Take closer root, see bottom of page 4 in Rana-Paper
+        if Deltap < Deltam
+            stcRight[i] = sp
+        else
+            stcRight[i] = sm
+        end
+    end
+    # fill left part by mirroring the right part
+    stcRight[2:(middleIndex-1)] = conj.(reverse(stcRight[(middleIndex+1):end]))
+
+    # Go back to frequency domain
+    SwRight = fftshift(fft(fftshift(stcRight)))
+    SwRight ./= maximum(abs.(SwRight))
+    # Take magnitude und subtract backgound
+    SwRight = subtractBackground(SwRight)
+    ScSwRight = myAutoConv(SwRight)
+    rmsDiffRight = rmsDiff(ScSwRight, ScSw)
+
+
+     # Loop just over the left hand side,  starting in the middle
+    stcLeft = similar(st2c)
+    stcLeft[middleIndex] = sqrt(st2c[middleIndex])
+    for ii = 1:(N÷2)
+        i = middleIndex - ii
+        sp = sqrt(st2c[i])
+        sm = - sp
+        # Equation (6) in Rana-Paper:
+        Deltap = alpha * abs(sp - stcLeft[i+1])
+        Deltam = alpha * abs(sm - stcLeft[i+1])
+
+        # Equation (7) in Rana-Paper:
+        if ii > 1
+            Deltap += beta * abs(sp - 2*stcLeft[i+1] + stcLeft[i+2])
+            Deltam += beta * abs(sm - 2*stcLeft[i+1] + stcLeft[i+2])
+        end
+
+        # Equation (8) in Rana-Paper:
+        if ii > 2
+            Deltap += gamma * abs(sp - 3*stcLeft[i+1] + 3 * stcLeft[i+2] - stcLeft[i+3])
+            Deltam += gamma * abs(sm - 3*stcLeft[i+1] + 3 * stcLeft[i+2] - stcLeft[i+3])
+        end
+
+        # Take closer root, see bottom of page 4 in Rana-Paper
+        if Deltap < Deltam
+            stcLeft[i] = sp
+        else
+            stcLeft[i] = sm
+        end
+    end
+    # fill right hand part by mirroring the left part
+    stcLeft[(middleIndex+1):end] = conj.(reverse(stcLeft[2:(middleIndex-1)]))
+
+    # Go back to frequency domain
+    SwLeft = fftshift(fft(fftshift(stcLeft)))
+    SwLeft ./= maximum(abs.(SwLeft))
+    # Take magnitude und subtract backgound
+    SwLeft = subtractBackground(SwLeft)# Take magnitude und subtract backgound
+    ScSwLeft = myAutoConv(SwLeft)
+    rmsDiffLeft = rmsDiff(ScSwLeft, ScSw)
+
+    # So now we have four candicates: pick the best
+    rmsVec = [rmsDiffSimple, rmsDiffSym, rmsDiffRight, rmsDiffLeft]
+    @show rmsVec
+    (minRms, minIdx) = findmin(rmsVec)
+    Sw = SwLeft
+    if minIdx == 1
+        Sw = SwSimple
+    elseif minIdx == 2
+        Sw = SwSym
+    elseif minIdx == 3
+        Sw = SwRight
+    end
+
+    # construct frequency axis the returned signal lives on
+    ws = N*w0
+    wAxis = (0:(N-1))*w0 .- ws/2
+
+    return (Sw, wAxis, minIdx, minRms)
+end
 
 
 
-export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, Sw2Sl, Sl2Sw, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana, ranaDetails
+
+export berechneFWHM, berechneRMSBreite, berechneCOM, intensityMatFreq2Wavelength, intensityMatWavelength2Freq, Sw2Sl, Sl2Sw, specMatCorrectlySampled, autocorr, mseUpToScale, traceError, mseUpToSignAndLin, idxRangeAboveThres, idxRangeWithinLimits, rana, ranaDetails, ranaImproved

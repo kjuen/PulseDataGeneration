@@ -61,7 +61,7 @@ function sech2Shape(x, xPeak, rmsw, A)
     lambda = 0.5679 / rmsw;
     a = lambda * A / 2;
     y = a*(sech.(lambda*(x .- xPeak))).^2;
-
+    return y
 end
 
 
@@ -122,11 +122,12 @@ function createRandomSignal(params; shapeNum::Int=0, peakNum::Int=0)
     # mit den Parametern params
 
     if shapeNum == 0
-        shapeNum = rand(1:3)
+        shapeNum = rand(1:2)
     elseif shapeNum < 0 || shapeNum > 3
         error("Unknown shapeNum")
     end
     # i = 1
+    #FIXME: warum klappt es mit dem exp. abfallenden Pulsen nicht?!?!??!
     if shapeNum == 1
         shapeFunc = gaussShape
     elseif shapeNum == 2
@@ -144,7 +145,7 @@ function createRandomSignal(params; shapeNum::Int=0, peakNum::Int=0)
     # peakDiff = rdVal(0.2, 0.3)
     if peakNum == 4    # absorption
         wAbs = params.wPeak + rdVal(-2, 2) * params.rmsw
-        rmswAbs = params.rmsw / rdVal(10, 25)
+        rmswAbs = params.rmsw / rdVal(5, 7)
         abssig = ww -> peakWithAbsorption(shapeFunc, ww, params.wPeak, wAbs, params.rmsw, rmswAbs, params.A)
     elseif peakNum == 2   # double peak
         peak1 = params.wPeak + rdVal(-1.0, -0.5) * params.rmsw
@@ -169,7 +170,8 @@ function createRandomSignal(params; shapeNum::Int=0, peakNum::Int=0)
     # cubicPhaseFunc(ff, params.fPeak, params.timeShift, params.gdd, params.tod);
 
     # Rückgabe: Betrag, Phase, Group-Delay
-    return (abssig, cubicPhaseFuncAngFreq(params.wPeak, params.timeShift, params.gdd, params.tod)...)
+    return (abssig, cubicPhaseFuncAngFreq(params.wPeak, params.timeShift, params.gdd, params.tod)...,
+            shapeNum, peakNum)
 end
 
 # end

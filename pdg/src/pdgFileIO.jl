@@ -1,6 +1,7 @@
 using FreqTables
 using DelimitedFiles
 using DSP: unwrap
+using DataFrames
 using CSV
 
 # include("/home/kjuen/dvlp/kai/Julia/PulseDataGeneration/pdgFunctionsAndConstants.jl")
@@ -151,7 +152,8 @@ function writeFrogTraceToFile(fn, delayAxis, wavAxis, intensityMat;
     io = open(fn, "w")
     write(io, createHeaderline(hi))
     maxI = maximum(intensityMat)
-    intensityMat .*= maxVal/maxI
+    # intensityMat .*= maxVal/maxI
+    intensityMat = round.(intensityMat*maxVal/maxI, digits=4)
 
     writedlm(io, intensityMat, '\t')
     close(io)
@@ -328,7 +330,8 @@ function writePulseDataToDir(fullPath::String,
         fn = "as_" * string(matName) * ".dat"
         # Skaliert auf max=2^16
         writeFrogTraceToFile(joinpath(fullPath, fn),
-                             asData[1], asData[2], asData[3][matName])
+                             asData[1], asData[2], asData[3][matName];
+                             maxVal=1.0)
     end
 
 end
