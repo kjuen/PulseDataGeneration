@@ -675,7 +675,7 @@ function ranaImproved(ScSw, w0; alpha=0.09, beta=0.425, gamma=1.0)
 
     # So now we have four candicates: pick the best
     rmsVec = [rmsDiffSimple, rmsDiffSym, rmsDiffRight, rmsDiffLeft]
-    @show rmsVec
+    #@show rmsVec
     (minRms, minIdx) = findmin(rmsVec)
     Sw = SwLeft
     if minIdx == 1
